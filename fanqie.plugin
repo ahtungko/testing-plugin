@@ -1,5 +1,5 @@
-#!name = 番茄小说净化与免广告特权
-#!desc = 基于 Loon 3.5.1+ 新版 Rewrite 引擎，纯原生无脚本净化穿山甲与商业化投放策略，注入本地免广告特权状态。
+#!name = 番茄小说净化与免广告特权 (完整终极版)
+#!desc = 基于 Loon 3.5.1+ 新版 Rewrite 引擎，内置 QUIC 阻断，纯原生无脚本净化穿山甲、商业化投放策略与 VIP 促销弹窗，注入本地免广告特权状态。
 #!author = Custom
 #!system = iOS,iPadOS
 #!loon_version = 3.5.1(978)
@@ -11,12 +11,17 @@ DOMAIN, ad.zijieapi.com, REJECT
 DOMAIN-KEYWORD, pangolin-sdk-toutiao, REJECT
 DOMAIN-SUFFIX, pglstatp-toutiao.com, REJECT
 
+# 2. 阻断番茄小说相关域名的 QUIC (UDP 443) 流量，强制降级为 HTTPS 以确保 MitM 解密生效
+DOMAIN-SUFFIX, snssdk.com, REJECT, protocol, quic
+DOMAIN-SUFFIX, fqnovel.com, REJECT, protocol, quic
+DOMAIN-SUFFIX, zijieapi.com, REJECT, protocol, quic
+
 [Rewrite]
-# 2. 穿山甲 MSDK 核心拉取、Banner、激励与上报路径直接伪装空 JSON 字典返回 (状态码 200)
+# 3. 穿山甲 MSDK 核心拉取、Banner、激励与上报路径直接伪装空 JSON 字典返回 (状态码 200)
 request if ${url} ~= /^https?:\/\/ad\.zijieapi\.com\/api\/ad\/v1\// then reject_dict(200)
 request if ${url} ~= /^https?:\/\/ad\.zijieapi\.com\/api\/incentive\/marketing\// then reject_dict(200)
 
-# 3. 阅读器插屏、贴片、章末广告、游戏联运与挽留弹窗接口直接返回空字典
+# 4. 阅读器插屏、贴片、章末广告、游戏联运与挽留弹窗接口直接返回空字典
 request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/commerceapi\/ad\/patch_plan\// then reject_dict(200)
 request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/commerceapi\/ad\/feature\// then reject_dict(200)
 request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/commerceapi\/ad\/book\/lastpage\// then reject_dict(200)
@@ -27,10 +32,15 @@ request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/bookapi\/reader_banner_resou
 request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/user\/ad_free\/popup\// then reject_dict(200)
 request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/user\/ad_free\/pre_save\/panel\// then reject_dict(200)
 
-# 4. 核心商业化投放计划 (delivery_plan)：使用原生 jq 引擎将 data 置空，保留外层 code 与签名防崩溃
+# 5. 拦截个人中心与阅读页的 VIP 促销横幅、限时打折弹窗与挽留弹窗
+request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/user\/vip\/entrance\/info\// then reject_dict(200)
+request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/user\/vip\/discount\/show_info\// then reject_dict(200)
+request if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/user\/vip\/inspire\/show_info\// then reject_dict(200)
+
+# 6. 核心商业化投放计划 (delivery_plan)：使用原生 jq 引擎将 data 置空，保留外层 code 与签名防崩溃
 response if ${url} ~= /^https?:\/\/[\w.-]+\/reading\/commerceapi\/ad\/delivery_plan\// then response.json.jq(".data = {}")
 
-# 5. 免广告特权接口 (ad_free 与 low_active_ad_free)：直接拦截请求并在本地 Mock 返回完整的 SetAdFreeData 结构
+# 7. 免广告特权接口 (ad_free 与 low_active_ad_free)：直接拦截请求并在本地 Mock 返回完整的 SetAdFreeData 结构
 response if ${url} ~= /^https?:\/\/[\w.-]+\/luckycat\/novel\/v1\/privilege\/[a-z_]*ad_free/ then response.body.mock("json", `{"code":0,"message":"success","data":{"is_ad_free_vip":true,"expire_time":4102415999,"expire_days":9999,"popup_info":{"title":"恭喜获得免广告特权","subtitle":"已为你免除阅读过程中的插屏与视频广告","action_schema":""}}}`, 200)
 
 [Mitm]
